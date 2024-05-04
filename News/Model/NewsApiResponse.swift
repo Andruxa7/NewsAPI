@@ -7,6 +7,10 @@
 
 import Foundation
 
+enum Section {
+    case main
+}
+
 // MARK: - NewsAPIResponse
 struct NewsAPIResponse: Codable {
     let status: String
@@ -15,7 +19,7 @@ struct NewsAPIResponse: Codable {
 }
 
 // MARK: - Article
-struct Article: Codable {
+struct Article: Hashable, Codable {
     let source: Source
     let author: String?
     let title: String
@@ -24,6 +28,14 @@ struct Article: Codable {
     let urlToImage: String?
     let publishedAt: String
     let content: String?
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(title)
+    }
+    
+    static func == (lhs: Article, rhs: Article) -> Bool {
+        return lhs.title == rhs.title
+    }
 }
 
 // MARK: - Source

@@ -69,6 +69,7 @@ extension CategoryVC: UICollectionViewDelegate {
         
         let headLineVC = HeadlinesVC()
         headLineVC.category = self.category[indexPath.row]
+        
         self.navigationController?.pushViewController(headLineVC, animated: true)
     }
 }

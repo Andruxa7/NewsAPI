@@ -8,6 +8,15 @@
 import UIKit
 import SafariServices
 
+extension HeadlinesVC: ViewModelDelegate {
+    func loadArticles(_ articles: [Article]) {
+        self.articles = articles
+        DispatchQueue.main.async {
+            self.createSnapshot()
+        }
+    }
+}
+
 class HeadlinesVC: UIViewController {
     
     //Create a tableView
@@ -17,10 +26,14 @@ class HeadlinesVC: UIViewController {
         return table
     }()
     
-    private let searchVC = UISearchController(searchResultsController: nil)
+    private let viewModel = ViewModel()
     private var articles = [Article]()
-    private var totalApiResults: Int = 0
-    private var currentPage: Int = 1
+    
+    var dataSource: UITableViewDiffableDataSource<Section, Article>! = nil
+    var currentSnapshot: NSDiffableDataSourceSnapshot<Section, Article>! = nil
+    
+    private let searchVC = UISearchController(searchResultsController: nil)
+
     var category: String? = nil
     let titleName: String = "Top News"
     
@@ -32,9 +45,11 @@ class HeadlinesVC: UIViewController {
         view.addSubview(tableView)
         
         tableView.delegate = self
-        tableView.dataSource = self
+        viewModel.delegate = self
         
         fetchMyCategoryStories()
+        createDataSource()
+        createSnapshot()
     }
     
     
@@ -57,30 +72,45 @@ class HeadlinesVC: UIViewController {
         self.navigationController?.navigationBar.sizeToFit()
     }
     
-    
-    private func fetchMyCategoryStories() {
-        NetworkManager.shared.onCompletionData = { [weak self] result in
-            guard let self = self else { return }
-            self.articles = result.articles
-            self.totalApiResults = result.totalResults
-            
-            // table view should refresh
-            DispatchQueue.main.async {
-                self.tableView.reloadData()
-            }
-        }
-        NetworkManager.shared.getMyCategoryStories(by: category ?? "General", andPage: String(currentPage))
-    }
-    
-    
     //MARK: - ViewDidLayoutSubViews
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         tableView.frame = view.bounds
     }
     
+    // MARK: - DataSource
+    func createDataSource() {
+        dataSource = UITableViewDiffableDataSource(tableView: tableView, cellProvider: { tableView, indexPath, article in
+            guard let cell = tableView.dequeueReusableCell(withIdentifier: HeadlinesTableViewCell.identifier,
+                                                           for: indexPath) as? HeadlinesTableViewCell else { fatalError() }
+            
+            cell.configure(with: self.articles[indexPath.row])
+            
+            return cell
+        })
+        
+        dataSource.defaultRowAnimation = .fade
+        tableView.dataSource = dataSource
+    }
+    
+    func createSnapshot() {
+        currentSnapshot = NSDiffableDataSourceSnapshot<Section, Article>()
+        currentSnapshot.appendSections([.main])
+        currentSnapshot.appendItems(articles)
+        dataSource.apply(currentSnapshot, animatingDifferences: true)
+    }
+    
+    private func fetchMyCategoryStories() {
+        viewModel.fetchArticlesWithDelegate()
+        viewModel.getMyCategoryStories(by: category ?? "General")
+    }
+    
     private func createSearchBar() {
         navigationItem.searchController = searchVC
+        //делаем так чтобы серчбар не пропадал при скроллинге таблицы
+        navigationItem.hidesSearchBarWhenScrolling = false
+        searchVC.hidesNavigationBarDuringPresentation = false
+        searchVC.obscuresBackgroundDuringPresentation = false
         searchVC.searchBar.delegate = self
         searchVC.searchBar.placeholder = "Search for news"
     }
@@ -88,19 +118,7 @@ class HeadlinesVC: UIViewController {
 
 
 //MARK: - extension for HeadlinesVC
-extension HeadlinesVC: UITableViewDelegate, UITableViewDataSource, UISearchBarDelegate {
-    // UITableViewDataSource
-    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return articles.count
-    }
-    
-    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        guard let cell = tableView.dequeueReusableCell(withIdentifier: HeadlinesTableViewCell.identifier,
-                                                       for: indexPath) as? HeadlinesTableViewCell else { fatalError() }
-        cell.configure(with: articles[indexPath.row])
-        
-        return cell
-    }
+extension HeadlinesVC: UITableViewDelegate, UISearchBarDelegate {
     
     // UITableViewDelegate
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
@@ -117,23 +135,7 @@ extension HeadlinesVC: UITableViewDelegate, UITableViewDataSource, UISearchBarDe
     
     func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
         if indexPath.row == articles.count - 1 {
-            if currentPage > 0 {
-                guard articles.count < totalApiResults else { return }
-                
-                currentPage += 1
-                print("LAST PAGE!!!")
-                
-                NetworkManager.shared.onCompletionData = { [weak self] result in
-                    guard let self = self else { return }
-                    self.articles.append(contentsOf: result.articles)
-                    
-                    // table view should refresh
-                    DispatchQueue.main.async {
-                        self.tableView.reloadData()
-                    }
-                }
-                NetworkManager.shared.getMyCategoryStories(by: category ?? "General", andPage: String(currentPage))
-            }
+            viewModel.loadNextPage(by: category ?? "General")
         }
     }
     
@@ -141,25 +143,19 @@ extension HeadlinesVC: UITableViewDelegate, UITableViewDataSource, UISearchBarDe
     func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
         guard let text = searchBar.text, !text.isEmpty else { return }
         
-        NetworkManager.shared.onCompletionData = { [weak self] result in
-            guard let self = self else { return }
-            self.articles = result.articles
-            
-            // table view should refresh
-            DispatchQueue.main.async {
-                self.tableView.reloadData()
-                self.searchVC.dismiss(animated: true, completion: nil)
-                
-                // Change title
-                self.navigationController?.navigationBar.prefersLargeTitles = false
-                self.navigationItem.title = "News for: \(text)"
-            }
-        }
-        NetworkManager.shared.searchURL(with: text)
+        viewModel.fetchArticlesWithDelegate()
+        
+        self.searchVC.dismiss(animated: true, completion: nil)
+        
+        // Change title
+        self.navigationController?.navigationBar.prefersLargeTitles = false
+        self.navigationItem.title = "News for: \(text)"
+        
+        viewModel.searchURL(with: text)
     }
     
     func searchBarCancelButtonClicked(_ searchBar: UISearchBar) {
-        currentPage = 1
+        viewModel.currentPage = 1
         fetchMyCategoryStories()
         
         // Change title
