@@ -8,6 +8,11 @@
 import Foundation
 import UIKit
 
+fileprivate class NewsImageCache {
+    static let shared = NewsImageCache()
+    var cache: [String : UIImage] = [:]
+}
+
 //for metod #2
 var imageCahce = NSCache<AnyObject, AnyObject>()
 
@@ -15,6 +20,12 @@ extension UIImageView {
     // #1
     func downloaded(from url: URL, contentMode mode: ContentMode = .scaleAspectFit) {
         contentMode = mode
+        
+        if let image = NewsImageCache.shared.cache[url.absoluteString] {
+            self.image = image
+            return
+        }
+        
         URLSession.shared.dataTask(with: url) { data, response, error in
             guard
                 let httpURLResponse = response as? HTTPURLResponse, httpURLResponse.statusCode == 200,
@@ -22,6 +33,9 @@ extension UIImageView {
                 let data = data, error == nil,
                 let image = UIImage(data: data)
             else { return }
+            
+            NewsImageCache.shared.cache[url.absoluteString] = image
+            
             DispatchQueue.main.async() { [weak self] in
                 self?.image = image
             }
