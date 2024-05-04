@@ -8,6 +8,7 @@
 import Foundation
 import UIKit
 
+// add class
 fileprivate class NewsImageCache {
     static let shared = NewsImageCache()
     var cache: [String : UIImage] = [:]
