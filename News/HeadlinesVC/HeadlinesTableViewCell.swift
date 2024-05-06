@@ -80,7 +80,7 @@ class HeadlinesTableViewCell: UITableViewCell {
         subtitleLabel.text = article.description ?? article.content
         
         //Image
-        let urlString = article.urlToImage ?? "https://picsum.photos/300"
+        let urlString = article.urlToImage ?? "https://picsum.photos/300?random=\(UUID().uuidString)"
         newsImageView.download(from: urlString, contentMode: .scaleAspectFill)
     }
     
