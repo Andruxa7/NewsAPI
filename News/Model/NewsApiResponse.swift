@@ -28,13 +28,14 @@ struct Article: Hashable, Codable {
     let urlToImage: String?
     let publishedAt: String
     let content: String?
+    let uuid = UUID()
     
     func hash(into hasher: inout Hasher) {
-        hasher.combine(title)
+        hasher.combine(uuid)
     }
     
     static func == (lhs: Article, rhs: Article) -> Bool {
-        return lhs.title == rhs.title
+        return lhs.uuid == rhs.uuid
     }
 }
 
