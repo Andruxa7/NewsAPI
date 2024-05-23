@@ -23,7 +23,8 @@ class ViewModel: NSObject {
     func fetchArticlesWithDelegate() {
         NetworkManager.shared.onCompletionData = { [weak self] result in
             guard let self = self else { return }
-            self.articles = result.articles
+            self.articles = result.articles.filter { $0.title != "[Removed]" }
+            self.articles = Array(Set(self.articles))
             self.totalApiResults = result.totalResults
             
             delegate?.loadArticles(self.articles)
